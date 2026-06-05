@@ -1,0 +1,3 @@
+# AI Recruiter - Redrob Hackathon
+# No external ML libraries needed - pure Python scoring engine
+# No LLM dependencies - runs fully offline

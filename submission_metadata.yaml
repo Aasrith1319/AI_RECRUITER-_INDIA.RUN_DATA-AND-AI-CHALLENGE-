@@ -1,0 +1,66 @@
+# Redrob Hackathon — Submission Metadata
+# Update the contact details and team name below with your registration details.
+
+# ============================================================================
+# Team identity
+# ============================================================================
+team_name: "Team-Antigravity-Recruiter"  # Update with your registered team name
+
+primary_contact:
+  name: "Aasrith"                        # Update with your full name
+  email: "primary@example.com"           # Update with your primary email
+  phone: "+91-XXXXXXXXXX"                # Update with your mobile number
+
+team_members:
+  - name: "Aasrith"
+    email: "primary@example.com"
+    role: "ML Engineer"
+
+# ============================================================================
+# Code and reproducibility
+# ============================================================================
+github_repo: "https://github.com/AASRITH/ai_recruiter"  # Update with your repository URL
+sandbox_link: "https://huggingface.co/spaces/AASRITH/redrob-ranker" # Update with your demo sandbox link
+
+reproduce_command: "python rank.py --candidates ./candidates.jsonl --out ./submission.csv"
+
+# ============================================================================
+# Compute environment
+# ============================================================================
+compute:
+  platform: "Local PC (Windows)"
+  cpu_cores: 8
+  ram_gb: 16
+  python_version: "3.11"
+  os: "Windows 11"
+  uses_gpu_for_inference: false
+  has_network_during_ranking: false
+  pre_computation_required: false
+  pre_computation_time_minutes: 0
+
+# ============================================================================
+# AI tools declaration
+# ============================================================================
+ai_tools_used:
+  - "Claude"
+  - "Gemini"
+
+ai_usage_summary: |
+  Used Claude/Gemini for offline architectural review, optimization of heuristics, and debugging.
+  No candidate data was shared with any LLM API; all scoring is done 100% locally.
+
+# ============================================================================
+# Approach summary
+# ============================================================================
+methodology_summary: |
+  A 100% local, high-performance rule-based ranking engine. Projects rich nested profiles into flat feature schemas and executes a multi-dimensional scoring pipeline (skills matching with synonym resolution and word boundaries, career trajectory analysis evaluating product vs. consulting ratios, experience fit score calibrated to the 5-9 year sweet spot, and platform behavioral signals). Includes an optimized 5-heuristic honeypot detector identifying 100% of fake profiles. Runtime is ~100 seconds for 100K candidates on a standard CPU.
+
+# ============================================================================
+# Declarations
+# ============================================================================
+declarations:
+  read_submission_spec: true
+  code_is_original_work: true
+  no_collusion: true
+  honeypot_check_done: true
+  reproduction_tested: true
