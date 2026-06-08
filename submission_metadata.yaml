@@ -19,7 +19,7 @@ team_members:
 # ============================================================================
 # Code and reproducibility
 # ============================================================================
-github_repo: "https://github.com/AASRITH/ai_recruiter"  # Update with your repository URL
+github_repo: "https://github.com/Aasrith1319/AI_RECRUITER-_INDIA.RUN_DATA-AND-AI-CHALLENGE-"
 sandbox_link: "https://huggingface.co/spaces/AASRITH/redrob-ranker" # Update with your demo sandbox link
 
 reproduce_command: "python rank.py --candidates ./candidates.jsonl --out ./submission.csv"
