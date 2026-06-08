@@ -200,7 +200,7 @@ footer {visibility: hidden}
 .title-container p {color: #4b5563; font-size: 1.1rem;}
 """
 
-with gr.Blocks(title="Redrob AI Recruiter Sandbox") as demo:
+with gr.Blocks(theme=theme, css=custom_css, title="Redrob AI Recruiter Sandbox") as demo:
     
     # Shared state to hold candidate map
     candidate_map_state = gr.State({})
@@ -281,4 +281,4 @@ with gr.Blocks(title="Redrob AI Recruiter Sandbox") as demo:
 
 if __name__ == "__main__":
     # Launch local server
-    demo.launch(server_name="0.0.0.0", server_port=7860, theme=theme, css=custom_css)
+    demo.launch(server_name="0.0.0.0", server_port=7860)
