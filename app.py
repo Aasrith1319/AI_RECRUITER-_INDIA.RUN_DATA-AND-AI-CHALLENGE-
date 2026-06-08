@@ -281,4 +281,4 @@ with gr.Blocks(title="Redrob AI Recruiter Sandbox") as demo:
 
 if __name__ == "__main__":
     # Launch local server
-    demo.launch(server_name="127.0.0.1", server_port=7860, theme=theme, css=custom_css)
+    demo.launch(server_name="0.0.0.0", server_port=7860, theme=theme, css=custom_css)
