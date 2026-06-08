@@ -1,3 +1,14 @@
+---
+title: Redrob Candidate Ranker
+emoji: 🏆
+colorFrom: indigo
+colorTo: purple
+sdk: gradio
+sdk_version: 4.36.1
+app_file: app.py
+pinned: false
+---
+
 # AI Candidate Ranking System — Redrob Hackathon
 
 > **The Data & AI Challenge — Intelligent Candidate Discovery & Ranking**
@@ -109,6 +120,20 @@ python validate_submission.py submission.csv
 python rank.py --candidates ./candidates.jsonl --out ./submission.csv --verbose
 ```
 
+### 5. Run the Sandbox UI Locally
+
+If you'd like to test the sandbox app locally before deploying or submitting:
+
+1. Install sandbox dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. Launch the Gradio app:
+   ```bash
+   python app.py
+   ```
+3. Open `http://127.0.0.1:7860` in your web browser to interact with the premium UI.
+
 ---
 
 ## Project Structure
@@ -116,15 +141,17 @@ python rank.py --candidates ./candidates.jsonl --out ./submission.csv --verbose
 ```
 ai_recruiter/
 ├── rank.py                    # CLI entry point (main command)
+├── app.py                     # Gradio web app (Hugging Face Space sandbox entrypoint)
 ├── config.py                  # Scoring weights, thresholds, constants
 ├── jd_requirements.py         # Hardcoded JD analysis, skill dictionaries
-├── data_loader.py             # JSONL stream parser, feature normalization
+├── data_loader.py             # JSONL/JSON stream parser, feature normalization
 ├── honeypot_detector.py       # Impossible profile detection
 ├── scorer.py                  # 7-component scoring engine
 ├── reasoning_generator.py     # Per-candidate reasoning generation
 ├── output_writer.py           # CSV output + format validation
-├── requirements.txt           # Dependencies (none — pure Python)
+├── requirements.txt           # Dependencies (Gradio & Pandas for sandbox)
 ├── submission_metadata.yaml   # Submission metadata template
+├── sample_candidates.json     # Pre-loaded 300KB dataset for sandbox demo
 └── README.md
 ```
 

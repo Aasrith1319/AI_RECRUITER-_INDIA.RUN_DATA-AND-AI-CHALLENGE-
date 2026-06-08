@@ -200,7 +200,8 @@ def _location_fragment(candidate: dict) -> str:
     """e.g. 'Pune-based' or 'currently in Bangalore with willingness to relocate'"""
     loc = (candidate.get("location") or "").strip()
     country = (candidate.get("country") or "").strip()
-    willing = candidate.get("willing_to_relocate")
+    signals = candidate.get("redrob_signals", {})
+    willing = signals.get("willing_to_relocate")
     loc_lower = loc.lower()
 
     for p in PREFERRED_LOCATIONS:
@@ -227,12 +228,13 @@ def _location_fragment(candidate: dict) -> str:
 def _behavioral_fragment(candidate: dict) -> str:
     """Behavioral signals: response rate, open-to-work, activity."""
     parts = []
-    rr = candidate.get("recruiter_response_rate")
-    otw = candidate.get("open_to_work_flag")
-    last_active = candidate.get("last_active_date", "")
-    notice = candidate.get("notice_period_days")
-    github = candidate.get("github_activity_score")
-    interview_rate = candidate.get("interview_completion_rate")
+    signals = candidate.get("redrob_signals", {})
+    rr = signals.get("recruiter_response_rate")
+    otw = signals.get("open_to_work_flag")
+    last_active = signals.get("last_active_date", "")
+    notice = signals.get("notice_period_days")
+    github = signals.get("github_activity_score")
+    interview_rate = signals.get("interview_completion_rate")
 
     if rr is not None:
         if rr >= 0.8:
@@ -255,16 +257,18 @@ def _behavioral_fragment(candidate: dict) -> str:
     return ", ".join(parts)
 
 
-def _concern_fragment(candidate: dict, score_breakdown: dict) -> str:
+def _concern_fragment(candidate: dict, score_breakdown: dict) -> list[str]:
     """Honestly surface gaps/concerns."""
     concerns = []
+    signals = candidate.get("redrob_signals", {})
 
-    # Notice period
-    notice = candidate.get("notice_period_days")
-    if notice is not None and notice > 30:
-        concerns.append(f"notice period ({notice} days)")
-    elif notice is not None and notice > 60:
-        concerns.append(f"extended notice period ({notice} days)")
+    # Notice period (extended notice > 60 checked first)
+    notice = signals.get("notice_period_days")
+    if notice is not None:
+        if notice > 60:
+            concerns.append(f"extended notice period ({notice} days)")
+        elif notice > 30:
+            concerns.append(f"notice period ({notice} days)")
 
     # Experience outside ideal range
     yoe = candidate.get("years_of_experience")
@@ -292,7 +296,7 @@ def _concern_fragment(candidate: dict, score_breakdown: dict) -> str:
         concerns.append("consulting-heavy background")
 
     # Response rate
-    rr = candidate.get("recruiter_response_rate")
+    rr = signals.get("recruiter_response_rate")
     if rr is not None and rr < 0.3:
         if "low response rate" not in " ".join(concerns):
             concerns.append(f"low recruiter engagement ({_fmt(rr, 2)})")
@@ -301,7 +305,7 @@ def _concern_fragment(candidate: dict, score_breakdown: dict) -> str:
     loc = (candidate.get("location") or "").lower()
     country = (candidate.get("country") or "").lower()
     if country and "india" not in country:
-        willing = candidate.get("willing_to_relocate")
+        willing = signals.get("willing_to_relocate")
         if not willing:
             concerns.append("international location without relocation willingness")
 

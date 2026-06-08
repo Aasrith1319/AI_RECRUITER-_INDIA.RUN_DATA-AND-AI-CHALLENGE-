@@ -193,6 +193,35 @@ def stream_candidates(path: str | Path) -> Generator[dict, None, None]:
     if not path.exists():
         raise FileNotFoundError(f"Candidate file not found: {path}")
 
+    # Check if the file starts with a JSON list bracket '['
+    is_json_array = False
+    with open(path, "r", encoding="utf-8") as fh:
+        for char in fh.read(100):
+            if char.strip():
+                if char == '[':
+                    is_json_array = True
+                break
+
+    if is_json_array:
+        with open(path, "r", encoding="utf-8") as fh:
+            try:
+                data = json.load(fh)
+                if isinstance(data, list):
+                    for idx, raw in enumerate(data, start=1):
+                        if not isinstance(raw, dict):
+                            logger.warning("Skipping index %d: expected dict", idx)
+                            continue
+                        try:
+                            yield _normalise_candidate(raw)
+                        except Exception as exc:
+                            cid = raw.get("candidate_id", "UNKNOWN")
+                            logger.warning("Skipping candidate %s at index %d: %s", cid, idx, exc)
+                else:
+                    logger.warning("Expected JSON array, got %s", type(data).__name__)
+            except Exception as exc:
+                logger.error("Failed to parse JSON file: %s", exc)
+        return
+
     skipped = 0
     with open(path, "r", encoding="utf-8") as fh:
         for line_no, line in enumerate(fh, start=1):
