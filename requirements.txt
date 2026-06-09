@@ -2,6 +2,5 @@
 # No external ML libraries needed - pure Python scoring engine
 # No LLM dependencies - runs fully offline
 
-gradio>=4.0.0
+gradio>=5.0.0
 pandas>=1.5.0
-huggingface_hub<0.24.0

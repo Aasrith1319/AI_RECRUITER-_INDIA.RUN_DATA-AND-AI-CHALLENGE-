@@ -4,12 +4,38 @@ app.py
 ──────
 Gradio Sandbox Web Application for Redrob AI Recruiter.
 This app provides a premium, interactive user interface to run and inspect the candidate ranking engine.
+
+Compatible with Gradio 5.x and 6.x.
 """
 
 import os
 import sys
+import io
 import json
 import time
+import traceback
+
+# ── Fix Windows encoding for emoji in print() ──
+# scorer.py and other modules use emoji (✅, 📊, etc.) in print() calls.
+# On Windows, sys.stdout defaults to cp1252 which can't encode emoji, crashing the pipeline.
+# This fix ensures UTF-8 encoding for stdout/stderr before importing any project modules.
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        try:
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+if sys.stderr.encoding != 'utf-8':
+    try:
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        try:
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
 import pandas as pd
 import gradio as gr
 
@@ -25,22 +51,32 @@ from output_writer import write_submission_csv
 # Global config
 DEFAULT_SAMPLE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sample_candidates.json")
 
-# Core ranking handler for Gradio
+# Global store for candidate details (used by inspector)
+_candidate_map = {}
+
+
 def run_ranking(file_obj, use_sample):
+    """Core ranking handler for Gradio."""
+    global _candidate_map
+    _candidate_map = {}
     logs = []
     t_start = time.time()
-    
+
     # ── Step 1: Select input file ──
     if file_obj is not None:
-        file_path = file_obj.name
+        # In Gradio 5+/6+, file_obj is a filepath string when type is not specified
+        if isinstance(file_obj, str):
+            file_path = file_obj
+        else:
+            file_path = file_obj.name
         logs.append(f"📂 Processing uploaded file: {os.path.basename(file_path)}")
     elif use_sample:
         if not os.path.exists(DEFAULT_SAMPLE_PATH):
-            return "❌ Error: Default sample_candidates.json not found in repository.", None, None, None
+            return "❌ Error: Default sample_candidates.json not found in repository.", None, None, []
         file_path = DEFAULT_SAMPLE_PATH
         logs.append("📂 Processing pre-loaded dataset (sample_candidates.json)")
     else:
-        return "⚠️ Please upload a JSON/JSONL dataset or check the 'Use Pre-loaded Sample Dataset' option.", None, None, None
+        return "⚠️ Please upload a JSON/JSONL dataset or check the 'Use Pre-loaded Sample Dataset' option.", None, None, []
 
     # ── Step 2: Load and normalise candidates ──
     try:
@@ -52,7 +88,7 @@ def run_ranking(file_obj, use_sample):
                     if stripped.startswith("["):
                         is_json_array = True
                     break
-        
+
         candidates = []
         if is_json_array:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -68,10 +104,10 @@ def run_ranking(file_obj, use_sample):
                     if line.strip():
                         raw = json.loads(line)
                         candidates.append(_normalise_candidate(raw))
-        
+
         logs.append(f"   ✅ Successfully loaded {len(candidates)} candidates.")
     except Exception as e:
-        return f"❌ Error loading candidates: {str(e)}", None, None, None
+        return f"❌ Error loading candidates: {str(e)}\n{traceback.format_exc()}", None, None, []
 
     # ── Step 3: Run Honeypot Detection ──
     t_honeypot = time.time()
@@ -86,18 +122,17 @@ def run_ranking(file_obj, use_sample):
     # ── Step 5: Select Top N (up to 100) ──
     top_n = min(100, len(scored))
     top_candidates = scored[:top_n]
-    logs.append(f"🏆 Ranker: Selected top {top_n} candidates (Honeypot rate in Top 100: 0.00%).")
+    logs.append(f"🏆 Ranker: Selected top {top_n} candidates.")
 
     # ── Step 6: Generate Fact-Based Reasonings ──
     t_reasoning = time.time()
     output_candidates = []
     display_rows = []
-    candidate_map = {} # Store full details for inspector
 
     for i, c in enumerate(top_candidates):
         rank = i + 1
         reasoning = generate_reasoning(c, rank, c["score"], c.get("breakdown", {}))
-        
+
         # Output format for CSV
         output_candidates.append({
             "candidate_id": c["candidate_id"],
@@ -106,7 +141,8 @@ def run_ranking(file_obj, use_sample):
         })
 
         # Save candidate for inspector
-        candidate_map[f"#{rank} - {c['name']} ({c['candidate_id']})"] = c
+        key = f"#{rank} - {c['name']} ({c['candidate_id']})"
+        _candidate_map[key] = c
 
         # UI table display format
         signals = c.get("redrob_signals", {})
@@ -131,65 +167,68 @@ def run_ranking(file_obj, use_sample):
 
     df = pd.DataFrame(display_rows)
     log_text = "\n".join(logs)
-    
-    # Generate choices list for dropdown
-    inspector_choices = list(candidate_map.keys())
 
-    return log_text, df, out_csv, gr.update(choices=inspector_choices, value=inspector_choices[0] if inspector_choices else None), candidate_map
+    # Generate choices list for dropdown — return a Dropdown instance for Gradio 5/6 compatibility
+    inspector_choices = list(_candidate_map.keys())
+    dropdown_update = gr.Dropdown(
+        choices=inspector_choices,
+        value=inspector_choices[0] if inspector_choices else None
+    )
+
+    return log_text, df, out_csv, dropdown_update
 
 
-def inspect_candidate(selected_candidate, candidate_map):
-    if not selected_candidate or not candidate_map or selected_candidate not in candidate_map:
+def inspect_candidate(selected_candidate):
+    """Inspect a single candidate's detailed scoring breakdown."""
+    global _candidate_map
+    if not selected_candidate or selected_candidate not in _candidate_map:
         return "### Select a candidate from the dropdown after running the ranker."
 
-    c = candidate_map[selected_candidate]
+    c = _candidate_map[selected_candidate]
     bd = c.get("breakdown", {})
     signals = c.get("redrob_signals", {})
-    
+
     # Construct Markdown representation
     md = f"""
-    ### 👤 Candidate Details: {c['name']} ({c['candidate_id']})
-    * **Current Title**: {c.get('current_title', 'N/A')}
-    * **Company**: {c.get('current_company', 'N/A')} ({c.get('current_company_size', 'N/A')})
-    * **Location**: {c.get('location', 'N/A')}, {c.get('country', 'N/A')}
-    * **Total Experience**: {c.get('years_of_experience', 0):.1f} Years
+### 👤 Candidate Details: {c['name']} ({c['candidate_id']})
+* **Current Title**: {c.get('current_title', 'N/A')}
+* **Company**: {c.get('current_company', 'N/A')} ({c.get('current_company_size', 'N/A')})
+* **Location**: {c.get('location', 'N/A')}, {c.get('country', 'N/A')}
+* **Total Experience**: {c.get('years_of_experience', 0):.1f} Years
 
-    #### 📊 Score Breakdown (Weights applied to composite score)
-    | Component | Raw Score | Weight | Weighted Score |
-    |---|---|---|---|
-    | 🛠️ Technical Skills Match | {bd.get('skills_score', 0.0):.4f} | 25% | {bd.get('skills_score', 0.0)*0.25:.4f} |
-    | 📈 Career Trajectory | {bd.get('career_score', 0.0):.4f} | 25% | {bd.get('career_score', 0.0)*0.25:.4f} |
-    | ⏳ Experience Fit | {bd.get('experience_score', 0.0):.4f} | 15% | {bd.get('experience_score', 0.0)*0.15:.4f} |
-    | 💬 Behavioral Signals | {bd.get('behavioral_score', 0.0):.4f} | 15% | {bd.get('behavioral_score', 0.0)*0.15:.4f} |
-    | 📍 Location Logistics | {bd.get('location_score', 0.0):.4f} | 5% | {bd.get('location_score', 0.0)*0.05:.4f} |
-    | 🎓 Education Credentials | {bd.get('education_score', 0.0):.4f} | 5% | {bd.get('education_score', 0.0)*0.05:.4f} |
-    | 🌟 Anti-Pattern Bonus | {bd.get('bonus_score', 0.0):.4f} | 10% | {bd.get('bonus_score', 0.0)*0.10:.4f} |
-    
-    * **Multiplicative Penalty Factor**: `{bd.get('penalty_factor', 1.0):.2f}x` (Anti-patterns penalize scores multiplicatively)
-    * **Final Composite Score**: `{c['score']:.4f}`
+#### 📊 Score Breakdown (Weights applied to composite score)
+| Component | Raw Score | Weight | Weighted Score |
+|---|---|---|---|
+| 🛠️ Technical Skills Match | {bd.get('skills_score', 0.0):.4f} | 25% | {bd.get('skills_score', 0.0)*0.25:.4f} |
+| 📈 Career Trajectory | {bd.get('career_score', 0.0):.4f} | 25% | {bd.get('career_score', 0.0)*0.25:.4f} |
+| ⏳ Experience Fit | {bd.get('experience_score', 0.0):.4f} | 15% | {bd.get('experience_score', 0.0)*0.15:.4f} |
+| 💬 Behavioral Signals | {bd.get('behavioral_score', 0.0):.4f} | 15% | {bd.get('behavioral_score', 0.0)*0.15:.4f} |
+| 📍 Location Logistics | {bd.get('location_score', 0.0):.4f} | 5% | {bd.get('location_score', 0.0)*0.05:.4f} |
+| 🎓 Education Credentials | {bd.get('education_score', 0.0):.4f} | 5% | {bd.get('education_score', 0.0)*0.05:.4f} |
+| 🌟 Anti-Pattern Bonus | {bd.get('bonus_score', 0.0):.4f} | 10% | {bd.get('bonus_score', 0.0)*0.10:.4f} |
 
-    #### 🔍 Flagged Anti-Patterns & Flags
-    * **Flagged Anti-Patterns**: {', '.join([f'`{ap}`' for ap in bd.get('anti_patterns', [])]) if bd.get('anti_patterns') else 'None (Clean Profile) ✅'}
+* **Multiplicative Penalty Factor**: `{bd.get('penalty_factor', 1.0):.2f}x` (Anti-patterns penalize scores multiplicatively)
+* **Final Composite Score**: `{c['score']:.4f}`
 
-    #### 🔬 Engagement & Availability Signals
-    * **Recruiter Response Rate**: {signals.get('recruiter_response_rate', 0.0)*100:.1f}%
-    * **Notice Period**: {signals.get('notice_period_days', 'N/A')} Days
-    * **Open to Work**: {'Yes' if signals.get('open_to_work_flag') else 'No'}
-    * **GitHub Activity Score**: {signals.get('github_activity_score', -1):.1f}/100
-    * **Interview Attendance**: {signals.get('interview_completion_rate', 0.0)*100:.1f}%
-    * **Offer Acceptance Rate**: {signals.get('offer_acceptance_rate', 0.0)*100:.1f}%
-    """
+#### 🔍 Flagged Anti-Patterns & Flags
+* **Flagged Anti-Patterns**: {', '.join([f'`{ap}`' for ap in bd.get('anti_patterns', [])]) if bd.get('anti_patterns') else 'None (Clean Profile) ✅'}
+
+#### 🔬 Engagement & Availability Signals
+* **Recruiter Response Rate**: {signals.get('recruiter_response_rate', 0.0)*100:.1f}%
+* **Notice Period**: {signals.get('notice_period_days', 'N/A')} Days
+* **Open to Work**: {'Yes' if signals.get('open_to_work_flag') else 'No'}
+* **GitHub Activity Score**: {signals.get('github_activity_score', -1):.1f}/100
+* **Interview Attendance**: {signals.get('interview_completion_rate', 0.0)*100:.1f}%
+* **Offer Acceptance Rate**: {signals.get('offer_acceptance_rate', 0.0)*100:.1f}%
+"""
     return md
+
 
 # ─── Gradio Block UI Design ───
 theme = gr.themes.Soft(
     primary_hue="indigo",
     secondary_hue="slate",
-    neutral_hue="slate"
-).set(
-    button_primary_background_fill="*primary_600",
-    button_primary_background_fill_hover="*primary_700",
-    button_primary_text_color="#ffffff"
+    neutral_hue="slate",
 )
 
 # Custom premium styling
@@ -200,10 +239,7 @@ footer {visibility: hidden}
 .title-container p {color: #4b5563; font-size: 1.1rem;}
 """
 
-with gr.Blocks(theme=theme, css=custom_css, title="Redrob AI Recruiter Sandbox") as demo:
-    
-    # Shared state to hold candidate map
-    candidate_map_state = gr.State({})
+with gr.Blocks(title="Redrob AI Recruiter Sandbox", theme=theme, css=custom_css) as demo:
 
     with gr.Row(elem_classes="title-container"):
         gr.HTML("""
@@ -217,21 +253,20 @@ with gr.Blocks(theme=theme, css=custom_css, title="Redrob AI Recruiter Sandbox")
     with gr.Row():
         with gr.Column(scale=1):
             gr.Markdown("### ⚙️ Controls")
-            
+
             use_sample_chk = gr.Checkbox(
                 label="Use Pre-loaded Sample Dataset (sample_candidates.json)",
                 value=True,
                 info="Runs evaluation on the 300KB hackathon-bundle sample."
             )
-            
+
             file_upload = gr.File(
                 label="Upload Custom Candidate JSON or JSONL file",
                 file_types=[".json", ".jsonl"],
-                type="filepath"
             )
-            
+
             run_btn = gr.Button("🚀 Run Ranking Engine", variant="primary")
-            
+
             gr.Markdown("### 📜 System Logs")
             logs_box = gr.Textbox(
                 label="Processing Logs",
@@ -239,7 +274,7 @@ with gr.Blocks(theme=theme, css=custom_css, title="Redrob AI Recruiter Sandbox")
                 lines=8,
                 interactive=False
             )
-            
+
             download_file = gr.File(
                 label="Download submission.csv Output",
                 interactive=False
@@ -253,15 +288,16 @@ with gr.Blocks(theme=theme, css=custom_css, title="Redrob AI Recruiter Sandbox")
                         interactive=False,
                         wrap=True
                     )
-                
+
                 with gr.TabItem("🔬 Profile & Score Inspector"):
                     with gr.Row():
                         inspector_select = gr.Dropdown(
                             label="Select Candidate to Inspect",
                             choices=[],
-                            interactive=True
+                            interactive=True,
+                            allow_custom_value=True
                         )
-                    
+
                     inspect_markdown = gr.Markdown(
                         "### Select a candidate from the dropdown after running the ranker."
                     )
@@ -270,12 +306,12 @@ with gr.Blocks(theme=theme, css=custom_css, title="Redrob AI Recruiter Sandbox")
     run_btn.click(
         fn=run_ranking,
         inputs=[file_upload, use_sample_chk],
-        outputs=[logs_box, table_output, download_file, inspector_select, candidate_map_state]
+        outputs=[logs_box, table_output, download_file, inspector_select]
     )
 
     inspector_select.change(
         fn=inspect_candidate,
-        inputs=[inspector_select, candidate_map_state],
+        inputs=[inspector_select],
         outputs=[inspect_markdown]
     )
 

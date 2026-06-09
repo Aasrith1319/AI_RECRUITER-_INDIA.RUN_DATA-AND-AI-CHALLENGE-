@@ -4,10 +4,9 @@ emoji: 🏆
 colorFrom: indigo
 colorTo: purple
 sdk: gradio
-sdk_version: 4.36.1
+sdk_version: 5.29.0
 app_file: app.py
 pinned: false
-python_version: "3.10"
 ---
 
 # AI Candidate Ranking System — Redrob Hackathon

@@ -1,26 +1,34 @@
 # Redrob Hackathon — Submission Metadata
-# Update the contact details and team name below with your registration details.
 
 # ============================================================================
 # Team identity
 # ============================================================================
-team_name: "Team-Antigravity-Recruiter"  # Update with your registered team name
+team_name: "AG"  
 
 primary_contact:
-  name: "Aasrith"                        # Update with your full name
-  email: "primary@example.com"           # Update with your primary email
-  phone: "+91-XXXXXXXXXX"                # Update with your mobile number
+  name: "G Venkata Sai Aasrith"                     
+  email: "gaasrithtanvik.1319@gmail.com"           
+  phone: "+91-9030903951"                
 
 team_members:
-  - name: "Aasrith"
-    email: "primary@example.com"
-    role: "ML Engineer"
+  - name: "G Venkata Sai Aasrith"
+    email: "gaasrithtanvik.1319@gmail.com"
+    role: "AI/ML Student Developer"
+  - name: "G Venkat Sashank"
+    email: "spdcl.siva@gmail.com"
+    role: "AI/ML Student Developer"
+  - name: "Akshit Shetty"
+    email: "akshitrajc@gmail.com"
+    role: "AI/ML Student Developer"
+  - name: "P Venkata Bhargav Reddy"
+    email: "venkatabhargav0612@gmail.com"
+    role: "AI/ML Student Developer"
 
 # ============================================================================
 # Code and reproducibility
 # ============================================================================
 github_repo: "https://github.com/Aasrith1319/AI_RECRUITER-_INDIA.RUN_DATA-AND-AI-CHALLENGE-"
-sandbox_link: "https://huggingface.co/spaces/AASRITH/redrob-ranker" # Update with your demo sandbox link
+sandbox_link: "https://huggingface.co/spaces/Aasrith1319/Redrob_ai_recruiter"
 
 reproduce_command: "python rank.py --candidates ./candidates.jsonl --out ./submission.csv"
 
