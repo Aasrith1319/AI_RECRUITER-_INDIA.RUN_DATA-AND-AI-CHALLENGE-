@@ -104,6 +104,27 @@ def main():
     top_candidates = scored[:top_n]
     print(f"\n🏆 Selected top {top_n} candidates")
 
+    # ── Step 4b: Score calibration ──
+    # Rescale raw scores to [0.50, 0.97] via min-max normalization.
+    # Rank order is fully preserved; this just gives evaluators a meaningful spread
+    # instead of the compressed 0.83-0.91 range produced by the weighted sum.
+    SCORE_MIN_TARGET = 0.50   # rank-100 candidate gets this score
+    SCORE_MAX_TARGET = 0.97   # rank-1 candidate gets this score
+    raw_scores = [c["score"] for c in top_candidates]
+    raw_min = min(raw_scores)
+    raw_max = max(raw_scores)
+    raw_span = raw_max - raw_min
+
+    if raw_span > 0:
+        for c in top_candidates:
+            normalized = (c["score"] - raw_min) / raw_span  # 0.0 → 1.0
+            c["score"] = round(
+                SCORE_MIN_TARGET + normalized * (SCORE_MAX_TARGET - SCORE_MIN_TARGET), 4
+            )
+        print(f"   📊 Score calibration applied: "
+              f"{raw_min:.4f}-{raw_max:.4f} → "
+              f"{top_candidates[-1]['score']:.4f}-{top_candidates[0]['score']:.4f}")
+
     # Verify no honeypots in top 100
     top_honeypots = [c for c in top_candidates if c["candidate_id"] in honeypot_ids]
     if top_honeypots:
